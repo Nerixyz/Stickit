@@ -9,4 +9,7 @@ Checks: "
   bugprone-*,
   cert-*,
   -llvm-include-order
+  -modernize-use-trailing-return-type
+  -readability-identifier-length
+  -performance-no-int-to-ptr
   "

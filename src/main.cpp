@@ -13,7 +13,7 @@
 
 #include <expected>
 
-constexpr float DEFAULT_DPI = 96.f;
+constexpr float DEFAULT_DPI = 96.F;
 constexpr LONG BUTTON_SIZE = 32;
 constexpr LONG BUTTON_BORDER = 8;
 
@@ -40,18 +40,22 @@ public:
 
   LRESULT wndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
-  HWND hwnd() const { return this->hWnd; }
+  [[nodiscard]] HWND hwnd() const { return this->hWnd; }
 
 private:
   HRESULT createD2DBitmapFromHBITMAP(HBITMAP hBitmap);
   HRESULT createDeviceResources();
 
   LRESULT onPaint(HWND hWnd);
+  void onSize(LPARAM lParam);
+  void onSizing(WPARAM wParam, LPARAM lParam) const;
+  LRESULT onHittest(LPARAM lParam);
 
-private:
   HWND hWnd = nullptr;
   HINSTANCE hInst = nullptr;
   HCURSOR sizeAllCursor = nullptr;
+
+  Size originalSize;
 
   bool hoveringButtons = false;
 
@@ -65,16 +69,14 @@ private:
   winrt::com_ptr<ID2D1SolidColorBrush> redBrush;
   winrt::com_ptr<ID2D1SolidColorBrush> whiteBrush;
   winrt::com_ptr<ID2D1SolidColorBrush> greyBrush;
-
-  Size originalSize;
 };
 
-int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
-                    LPWSTR pszCmdLine, int nCmdShow) {
-  HeapSetInformation(NULL, HeapEnableTerminationOnCorruption, NULL, 0);
+int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/,
+                    LPWSTR /*lpCmdLine*/, int /*nShowCmd*/) {
+  HeapSetInformation(nullptr, HeapEnableTerminationOnCorruption, NULL, 0);
 
-  HRESULT hr =
-      CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+  HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED |
+                                           COINIT_DISABLE_OLE1DDE);
 
   if (!SUCCEEDED(hr)) {
     return -1;
@@ -108,14 +110,14 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 }
 
 std::expected<HBITMAP, HRESULT> readClipboard(HWND hwnd) {
-  if (!OpenClipboard(hwnd)) {
+  if (OpenClipboard(hwnd) == FALSE) {
     return std::unexpected{E_FAIL};
   }
 
-  HBITMAP bitmap = reinterpret_cast<HBITMAP>(GetClipboardData(CF_BITMAP));
+  auto *bitmap = reinterpret_cast<HBITMAP>(GetClipboardData(CF_BITMAP));
   CloseClipboard();
 
-  if (bitmap) {
+  if (bitmap != nullptr) {
     return bitmap;
   }
   return std::unexpected{E_FAIL};
@@ -177,8 +179,9 @@ HRESULT Stickit::Initialize(HINSTANCE hInstance) {
 
 void Stickit::showNow() {
   ShowWindow(this->hWnd, SW_SHOW);
-  SetWindowPos(this->hWnd, HWND_TOPMOST, 0, 0, this->originalSize.width,
-               this->originalSize.height, SWP_NOMOVE);
+  SetWindowPos(this->hWnd, HWND_TOPMOST, 0, 0,
+               static_cast<int>(this->originalSize.width),
+               static_cast<int>(this->originalSize.height), SWP_NOMOVE);
 }
 
 HRESULT Stickit::createD2DBitmapFromHBITMAP(HBITMAP hBitmap) {
@@ -245,7 +248,7 @@ LRESULT CALLBACK globalWndProc(HWND hWnd, UINT uMsg, WPARAM wParam,
                                LPARAM lParam) {
 
   if (uMsg == WM_NCCREATE) {
-    LPCREATESTRUCT pcs = reinterpret_cast<LPCREATESTRUCT>(lParam);
+    auto *pcs = reinterpret_cast<LPCREATESTRUCT>(lParam);
     auto *self = reinterpret_cast<Stickit *>(pcs->lpCreateParams);
 
     SetWindowLongPtr(hWnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(self));
@@ -255,7 +258,7 @@ LRESULT CALLBACK globalWndProc(HWND hWnd, UINT uMsg, WPARAM wParam,
   auto *self =
       reinterpret_cast<Stickit *>(GetWindowLongPtr(hWnd, GWLP_USERDATA));
   LRESULT lRet = 0;
-  if (self) {
+  if (self != nullptr) {
     lRet = self->wndProc(hWnd, uMsg, wParam, lParam);
   } else {
     lRet = DefWindowProc(hWnd, uMsg, wParam, lParam);
@@ -267,69 +270,12 @@ LRESULT Stickit::wndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 
   switch (uMsg) {
   case WM_SIZE: {
-    D2D1_SIZE_U size = D2D1::SizeU(LOWORD(lParam), HIWORD(lParam));
-
-    if (this->renderTarget) {
-      // If we couldn't resize, release the device and we'll recreate it
-      // during the next render pass.
-      if (FAILED(this->renderTarget->Resize(size))) {
-        this->renderTarget = nullptr;
-        this->bitmap = nullptr;
-      }
-    }
+    this->onSize(lParam);
     break;
   }
 
   case WM_SIZING: { // ensure correct aspect ratio
-    auto *rect = reinterpret_cast<RECT *>(lParam);
-    auto width = rect->right - rect->left;
-    auto height = rect->bottom - rect->top;
-
-    enum Adapt { Width, Height };
-    enum Origin { TopLeft, BottomRight };
-    Adapt a;
-    Origin o;
-
-    auto fix = [&](Adapt a, Origin o) {
-      if (a == Width) {
-        width = this->originalSize.width * height / this->originalSize.height;
-        if (o == TopLeft) {
-          rect->right = rect->left + width;
-        } else {
-          rect->left = rect->right - width;
-        }
-      } else {
-        height = this->originalSize.height * width / this->originalSize.width;
-        if (o == TopLeft) {
-          rect->bottom = rect->top + height;
-        } else {
-          rect->top = rect->bottom - height;
-        }
-      }
-    };
-
-    switch (wParam) {
-    case WMSZ_BOTTOM:
-      fix(Width, TopLeft);
-      break;
-    case WMSZ_BOTTOMLEFT:
-    case WMSZ_BOTTOMRIGHT:
-      fix(Height, TopLeft);
-      break;
-    case WMSZ_LEFT:
-      fix(Width, BottomRight);
-      break;
-    case WMSZ_RIGHT:
-    case WMSZ_TOP:
-      fix(Width, TopLeft);
-      break;
-    case WMSZ_TOPLEFT:
-    case WMSZ_TOPRIGHT:
-      fix(Height, BottomRight);
-      break;
-    default:;
-    }
-
+    this->onSizing(wParam, lParam);
     return TRUE;
   }
 
@@ -343,72 +289,7 @@ LRESULT Stickit::wndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
   }
 
   case WM_NCHITTEST: { // handle resize handles, close & minimize, and moving
-    constexpr LONG borderWidth = 8;
-    RECT winrect;
-    GetWindowRect(hWnd, &winrect);
-
-    long x = GET_X_LPARAM(lParam);
-    long y = GET_Y_LPARAM(lParam);
-
-    // top right corner
-    if (y <= winrect.top + BUTTON_SIZE &&
-        x >= winrect.right - 2 * BUTTON_SIZE) {
-      auto btn = HTMINBUTTON;
-      if (x >= winrect.right - BUTTON_SIZE) {
-        btn = HTCLOSE;
-      }
-
-      if (!this->hoveringButtons) {
-        this->hoveringButtons = true;
-        InvalidateRect(hWnd, nullptr, TRUE);
-      }
-      return btn;
-    }
-
-    if (this->hoveringButtons) {
-      this->hoveringButtons = false;
-      InvalidateRect(hWnd, nullptr, TRUE);
-    }
-
-    // bottom left corner
-    if (x >= winrect.left && x < winrect.left + borderWidth &&
-        y < winrect.bottom && y >= winrect.bottom - borderWidth) {
-      return HTBOTTOMLEFT;
-    }
-    // bottom right corner
-    if (x < winrect.right && x >= winrect.right - borderWidth &&
-        y < winrect.bottom && y >= winrect.bottom - borderWidth) {
-      return HTBOTTOMRIGHT;
-    }
-    // top left corner
-    if (x >= winrect.left && x < winrect.left + borderWidth &&
-        y >= winrect.top && y < winrect.top + borderWidth) {
-      return HTTOPLEFT;
-    }
-    // top right corner
-    if (x < winrect.right && x >= winrect.right - borderWidth &&
-        y >= winrect.top && y < winrect.top + borderWidth) {
-      return HTTOPRIGHT;
-    }
-
-    // left border
-    if (x < winrect.left + borderWidth) {
-      return HTLEFT;
-    }
-    // right border
-    if (x >= winrect.right - borderWidth) {
-      return HTRIGHT;
-    }
-
-    // bottom border
-    if (y >= winrect.bottom - borderWidth) {
-      return HTBOTTOM;
-    }
-    // top border
-    if (y < winrect.top + borderWidth) {
-      return HTTOP;
-    }
-    return HTCAPTION;
+    return this->onHittest(lParam);
   }
 
   case WM_NCLBUTTONDOWN: { // disable default [fallback] buttons
@@ -461,16 +342,150 @@ LRESULT Stickit::wndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
   return DefWindowProc(hWnd, uMsg, wParam, lParam);
 }
 
+void Stickit::onSize(LPARAM lParam) {
+  D2D1_SIZE_U size = D2D1::SizeU(LOWORD(lParam), HIWORD(lParam));
+
+  if (this->renderTarget) {
+    // If we couldn't resize, release the device and we'll recreate it
+    // during the next render pass.
+    if (FAILED(this->renderTarget->Resize(size))) {
+      this->renderTarget = nullptr;
+      this->bitmap = nullptr;
+    }
+  }
+}
+
+void Stickit::onSizing(WPARAM wParam, LPARAM lParam) const {
+  auto *rect = reinterpret_cast<RECT *>(lParam);
+  auto width = rect->right - rect->left;
+  auto height = rect->bottom - rect->top;
+
+  enum Adapt { Width, Height };
+  enum Origin { TopLeft, BottomRight };
+  Adapt a;
+  Origin o;
+
+  auto fix = [&](Adapt a, Origin o) {
+    if (a == Width) {
+      width = static_cast<long>(this->originalSize.width) * height /
+              static_cast<long>(this->originalSize.height);
+      if (o == TopLeft) {
+        rect->right = rect->left + width;
+      } else {
+        rect->left = rect->right - width;
+      }
+    } else {
+      height = static_cast<long>(this->originalSize.height) * width /
+               static_cast<long>(this->originalSize.width);
+      if (o == TopLeft) {
+        rect->bottom = rect->top + height;
+      } else {
+        rect->top = rect->bottom - height;
+      }
+    }
+  };
+
+  switch (wParam) {
+  case WMSZ_BOTTOM:
+    fix(Width, TopLeft);
+    break;
+  case WMSZ_BOTTOMLEFT:
+  case WMSZ_BOTTOMRIGHT:
+    fix(Height, TopLeft);
+    break;
+  case WMSZ_LEFT:
+    fix(Width, BottomRight);
+    break;
+  case WMSZ_RIGHT:
+  case WMSZ_TOP:
+    fix(Width, TopLeft);
+    break;
+  case WMSZ_TOPLEFT:
+  case WMSZ_TOPRIGHT:
+    fix(Height, BottomRight);
+    break;
+  default:;
+  }
+}
+
+LRESULT Stickit::onHittest(LPARAM lParam) {
+  constexpr LONG borderWidth = 8;
+  RECT winrect;
+  GetWindowRect(hWnd, &winrect);
+
+  long x = GET_X_LPARAM(lParam);
+  long y = GET_Y_LPARAM(lParam);
+
+  // top right corner
+  if (y <= winrect.top + BUTTON_SIZE && x >= winrect.right - 2 * BUTTON_SIZE) {
+    auto btn = HTMINBUTTON;
+    if (x >= winrect.right - BUTTON_SIZE) {
+      btn = HTCLOSE;
+    }
+
+    if (!this->hoveringButtons) {
+      this->hoveringButtons = true;
+      InvalidateRect(hWnd, nullptr, TRUE);
+    }
+    return btn;
+  }
+
+  if (this->hoveringButtons) {
+    this->hoveringButtons = false;
+    InvalidateRect(hWnd, nullptr, TRUE);
+  }
+
+  // bottom left corner
+  if (x >= winrect.left && x < winrect.left + borderWidth &&
+      y < winrect.bottom && y >= winrect.bottom - borderWidth) {
+    return HTBOTTOMLEFT;
+  }
+  // bottom right corner
+  if (x < winrect.right && x >= winrect.right - borderWidth &&
+      y < winrect.bottom && y >= winrect.bottom - borderWidth) {
+    return HTBOTTOMRIGHT;
+  }
+  // top left corner
+  if (x >= winrect.left && x < winrect.left + borderWidth && y >= winrect.top &&
+      y < winrect.top + borderWidth) {
+    return HTTOPLEFT;
+  }
+  // top right corner
+  if (x < winrect.right && x >= winrect.right - borderWidth &&
+      y >= winrect.top && y < winrect.top + borderWidth) {
+    return HTTOPRIGHT;
+  }
+
+  // left border
+  if (x < winrect.left + borderWidth) {
+    return HTLEFT;
+  }
+  // right border
+  if (x >= winrect.right - borderWidth) {
+    return HTRIGHT;
+  }
+
+  // bottom border
+  if (y >= winrect.bottom - borderWidth) {
+    return HTBOTTOM;
+  }
+  // top border
+  if (y < winrect.top + borderWidth) {
+    return HTTOP;
+  }
+  return HTCAPTION;
+}
+
 LRESULT Stickit::onPaint(HWND hWnd) {
   HRESULT hr = S_OK;
   PAINTSTRUCT ps;
 
-  if (BeginPaint(hWnd, &ps)) {
+  if (BeginPaint(hWnd, &ps) != nullptr) {
     // create render target if not yet created
     hr = createDeviceResources();
 
-    if (SUCCEEDED(hr) && !(this->renderTarget->CheckWindowState() &
-                           D2D1_WINDOW_STATE_OCCLUDED)) {
+    if (SUCCEEDED(hr) && (this->renderTarget->CheckWindowState() &
+                          D2D1_WINDOW_STATE_OCCLUDED) == 0) {
       this->renderTarget->BeginDraw();
 
       this->renderTarget->SetTransform(D2D1::Matrix3x2F::Identity());
@@ -488,7 +503,7 @@ LRESULT Stickit::onPaint(HWND hWnd) {
       if (this->bitmap) {
         this->renderTarget->DrawBitmap(
             this->bitmap.get(),
-            D2D1::RectF(0.0f, 0.0f, size.width, size.height));
+            D2D1::RectF(0.0F, 0.0F, size.width, size.height));
       }
 
       // super basic buttons
@@ -531,7 +546,7 @@ LRESULT Stickit::onPaint(HWND hWnd) {
         this->bitmap = nullptr;
         this->renderTarget = nullptr;
         // Force a re-render
-        hr = InvalidateRect(hWnd, NULL, TRUE) ? S_OK : E_FAIL;
+        hr = InvalidateRect(hWnd, nullptr, TRUE) == TRUE ? S_OK : E_FAIL;
       }
     }
 
