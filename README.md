@@ -1,4 +1,4 @@
-# <img src="src/icon.ico" height="20" align="center"> Stickit
+# <img src="src/icon.ico" height="20"> Stickit
 
 Stickit is a small Windows tool that displays an image above all other windows. The image is the currently copied image, making it easy to use screenshots (<kbd>WIN</kbd> + <kbd>SHIFT</kbd> + <kbd>S</kbd>).
 
