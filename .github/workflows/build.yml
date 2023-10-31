@@ -96,6 +96,6 @@ jobs:
           omitBodyDuringUpdate: true
           omitNameDuringUpdate: true
           draft: true
-          artifacts: 'build/*'
+          artifacts: "build/*"
           name: ${{ steps.get-tag.outputs.VALUE }}
           tag: ${{ steps.get-tag.outputs.VALUE }}
