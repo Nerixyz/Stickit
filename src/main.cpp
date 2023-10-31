@@ -133,6 +133,8 @@ HRESULT Stickit::Initialize(HINSTANCE hInstance) {
   BAIL(D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED,
                          this->d2dFactory.put()));
 
+  SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+
   this->sizeAllCursor = LoadCursor(nullptr, IDC_SIZEALL);
 
   WNDCLASSEX wcex;
