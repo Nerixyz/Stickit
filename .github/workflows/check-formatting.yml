@@ -1,0 +1,24 @@
+name: Check formatting
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: clang-format
+        uses: RafikFarhad/clang-format-github-action@v3
+        with:
+          sources: "**/*.hpp,**/*.h,**/*.cpp,"
+
+      - name: Prettier
+        uses: actionsx/prettier@v3
+        with:
+          args: -c .

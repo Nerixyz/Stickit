@@ -1,0 +1,7 @@
+.vscode
+.code
+.vs
+.idea
+.cache
+
+/build*

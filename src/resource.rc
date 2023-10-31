@@ -1,0 +1,7 @@
+#include "resource.h"
+
+IDR_ACCEL1 ACCELERATORS
+{
+    0x1B, ID_CLOSE_WINDOW, VIRTKEY // ESC
+}
+IDI_ICON1 ICON DISCARDABLE "icon.ico"

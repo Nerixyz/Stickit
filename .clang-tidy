@@ -1,0 +1,12 @@
+Checks: "
+  clang-diagnostic-*,
+  llvm-*,
+  misc-*,
+  modernize-*,
+  readability-*,
+  performance-*,
+  misc-*,
+  bugprone-*,
+  cert-*,
+  -llvm-include-order
+  "
