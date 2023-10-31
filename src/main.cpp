@@ -12,7 +12,6 @@
 #include "resource.h"
 
 #include <expected>
-#include <print>
 
 constexpr float DEFAULT_DPI = 96.f;
 constexpr LONG BUTTON_SIZE = 32;
@@ -20,7 +19,6 @@ constexpr LONG BUTTON_BORDER = 8;
 
 #define BAIL(hr)                                                               \
   if (!SUCCEEDED((hr))) {                                                      \
-    std::println("Last error: {:#08x}", GetLastError());                       \
     return hr;                                                                 \
   }
 
