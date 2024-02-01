@@ -36,13 +36,13 @@ jobs:
         shell: powershell
 
       - name: Upload binary
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: Stickit.exe
           path: build/bin/Stickit.exe
 
       - name: Upload installer
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: Stickit.Installer.exe
           path: build/Stickit.Installer.exe
