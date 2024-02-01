@@ -88,7 +88,7 @@ jobs:
         id: get-tag
         run: echo "VALUE=$(git describe --exact-match --match 'v*')" >> "$GITHUB_OUTPUT"
       - name: Create release
-        uses: ncipollo/release-action@v1.12.0
+        uses: ncipollo/release-action@v1.13.0
         with:
           replacesArtifacts: true
           allowUpdates: true
