@@ -12,7 +12,7 @@ jobs:
     name: Build
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Enable VS Developer Command Prompt
         uses: ilammy/msvc-dev-cmd@v1.13.0
@@ -54,7 +54,7 @@ jobs:
     outputs:
       IS_TAGGED: ${{ steps.is-rel.outputs.IS_TAGGED }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0 # we need the tags
       - name: Check Release
@@ -70,7 +70,7 @@ jobs:
     needs: [build, check-release]
     if: ${{ needs.check-release.outputs.IS_TAGGED == '0' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0 # we need the tags
 
