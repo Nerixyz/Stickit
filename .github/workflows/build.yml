@@ -74,12 +74,12 @@ jobs:
         with:
           fetch-depth: 0 # we need the tags
 
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v7
         with:
           name: Stickit.exe
           path: build/
 
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v7
         with:
           name: Stickit.Installer.exe
           path: build/
